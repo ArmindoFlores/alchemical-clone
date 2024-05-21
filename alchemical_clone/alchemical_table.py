@@ -52,10 +52,15 @@ class AlchemicalTable:
             column.compute_properties()
 
         self.constraints = [AlchemicalConstraint(constraint, self) for constraint in self._table.constraints]
+
+        relationships = set()
         for constraint in self.constraints:
             constraint.compute_properties()
             if constraint.relationship_to is not None:
-                self.relationships.append(Relationship(constraint.columns[0], constraint.relationship_to))
+                new_relationsip = (constraint.referred_table.class_name, constraint.relationship_to)
+                if new_relationsip not in relationships:
+                    relationships.add(new_relationsip)
+                    self.relationships.append(Relationship(constraint.columns[0], constraint.relationship_to.fullname))
 
         self.indexes = [AlchemicalIndex(index, self) for index in self._table.indexes]
         for index in self.indexes:
@@ -94,6 +99,7 @@ class AlchemicalTable:
             table_args["schema"] = quoted_string(self._table.schema)
 
         relationships = []
+        relationship_tracker = set()
         has_primary_key = False
 
         # Generate table arguments and constraints, if any
@@ -114,7 +120,10 @@ class AlchemicalTable:
 
                     class_code += f"        {constraint_code},\n"
                     if relationship_code is not None:
-                        relationships.append(relationship_code)
+                        relationship_identifier = (constraint.referred_table.class_name, constraint.relationship_to.fullname)
+                        if relationship_identifier not in relationship_tracker:
+                            relationship_tracker.add(relationship_identifier)
+                            relationships.append(relationship_code)
 
             # Table arguments come next
             if len(table_args) > 0:
