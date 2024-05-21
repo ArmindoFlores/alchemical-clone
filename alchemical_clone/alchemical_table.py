@@ -5,6 +5,7 @@ from sqlalchemy import Table
 from .alchemical_column import AlchemicalColumn
 from .alchemical_constraint import AlchemicalConstraint
 from .alchemical_index import AlchemicalIndex
+from .generated_code import CodeLocation
 from .utils import pascal_case, quoted_string
 
 if typing.TYPE_CHECKING:
@@ -77,11 +78,14 @@ class AlchemicalTable:
             "sqlalchemy.orm": orm_imports 
         }
 
-    def codegen(self) -> str:
+    def codegen(self) -> typing.Dict[CodeLocation, str]:
         """Generate SQLAlchemy ORM code for this table."""
 
-        code =  f"class {self.class_name}(Base):\n"
-        code += f"    __tablename__ = {quoted_string(self.name)}\n"
+        class_code = ""
+        after_class_code = ""
+
+        class_code =  f"class {self.class_name}(Base):\n"
+        class_code += f"    __tablename__ = {quoted_string(self.name)}\n"
 
         table_args = {}
         if self._table.comment is not None:
@@ -94,7 +98,7 @@ class AlchemicalTable:
 
         # Generate table arguments and constraints, if any
         if len(table_args) + len(self.constraints) > 0:
-            code += "    __table_args__ = (\n"
+            class_code += "    __table_args__ = (\n"
 
             # Constraints come first
             if len(self.constraints) > 0:
@@ -108,19 +112,19 @@ class AlchemicalTable:
                     if constraint.type == "PrimaryKeyConstraint":
                         has_primary_key = True
 
-                    code += f"        {constraint_code},\n"
+                    class_code += f"        {constraint_code},\n"
                     if relationship_code is not None:
                         relationships.append(relationship_code)
 
             # Table arguments come next
             if len(table_args) > 0:
-                code += "        {\n"
+                class_code += "        {\n"
                 for arg, value in table_args.items():
-                    code += f"            {quoted_string(arg)}: {value},\n"
-                code += "        },\n"
+                    class_code += f"            {quoted_string(arg)}: {value},\n"
+                class_code += "        },\n"
 
-            code += "    )\n"
-        code += "\n"
+            class_code += "    )\n"
+        class_code += "\n"
 
         # Generate columns
         found_primary_key = has_primary_key
@@ -128,26 +132,26 @@ class AlchemicalTable:
             column_code = column.codegen(not has_primary_key)
             if column.implicit_primary_key:
                 found_primary_key = True
-            code += f"    {column_code}\n"
+            class_code += f"    {column_code}\n"
         if len(self.columns):
-            code += "\n"
+            class_code += "\n"
 
         if not found_primary_key:
             raise NotImplementedError(f"Table {self.name} does not have a primary key constraint, and no suitable combination of columns could be found.")
         
         # Generate relationships
         for relationship in relationships:
-            code += f"    {relationship}\n"
+            class_code += f"    {relationship}\n"
         if len(relationships):
-            code += "\n"
+            class_code += "\n"
 
         # Generate indexes
         for index in self.indexes:
-            code += f"{index.codegen()}\n"
+            after_class_code += f"{index.codegen()}\n"
         if len(self.indexes):
-            code += "\n"
+            after_class_code += "\n"
 
-        return code
+        return { "table": class_code, "end": after_class_code }
 
     def column_from_name(self, name: str) -> AlchemicalColumn:
         return next((column for column in self.columns if column.name == name), None)

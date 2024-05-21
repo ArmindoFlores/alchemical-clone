@@ -1,26 +1,33 @@
+import dataclasses
 import os
 import typing
 
 from sqlalchemy import MetaData
 
-from .alchemical_column import AlchemicalColumn
 from .alchemical_table import AlchemicalTable
-from .utils import pascal_case, quoted_string
+from .generated_code import GeneratedCode
+from .utils import pascal_case
 
 _BASE_FILE_CODE = """\
 __all__ = ["Base"]
 
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 
 Base = declarative_base()
 """
 
 
-PluginCode = typing.Dict[str, str]
+@dataclasses.dataclass
+class PluginImport:
+    package: str
+    modules: typing.Set[str]
+
+PluginImports = typing.Dict[str, typing.List[PluginImport]]
+
 PluginResult = typing.NamedTuple(
     "PluginResult", 
-    [("imports", typing.Dict[str, typing.Set[str]]), ("code", PluginCode)], 
+    [("imports", PluginImports), ("code", typing.Dict[str, typing.List[GeneratedCode]])], 
 )
 Plugin = typing.Callable[["AlchemicalLab"], PluginResult]
 
@@ -34,14 +41,16 @@ class AlchemicalLab:
     def create_clone(self, directory: typing.Union[str, bytes, os.PathLike], plugins: typing.Optional[typing.List[Plugin]] = None):
         """Generate a package with SQLAlchemy ORM classes for the given metadata."""
 
-        plugin_code: typing.Dict[str, typing.List[str]] = {}
-        plugin_imports: typing.Dict[str, typing.Set[str]] = {}
+        plugin_code: typing.Dict[str, typing.List[GeneratedCode]] = {}
+        plugin_imports: typing.Dict[str, typing.Dict[str, typing.List[str]]] = {}
         for plugin in plugins or []:
             result = plugin(self)
             for table_name, code in result.code.items():
-                plugin_code.setdefault(table_name, []).append(code)
-            for package, modules in result.imports.items():
-                plugin_imports.setdefault(package, set()).update(modules)
+                plugin_code.setdefault(table_name, []).extend(code)
+            for table, import_list in result.imports.items():
+                plugin_imports.setdefault(table, {})
+                for import_item in import_list:
+                    plugin_imports[table].setdefault(import_item.package, set()).update(import_item.modules)
 
         os.makedirs(directory, exist_ok=True)
         with open(os.path.join(directory, "_base.py"), "w") as f:
@@ -57,6 +66,10 @@ class AlchemicalLab:
             
             with open(os.path.join(directory, f"{table.name}.py"), "w") as f:
                 imports = table.imports
+                table_plugin_imports = plugin_imports.get(table.name, {})
+                for package, modules in table_plugin_imports.items():
+                    imports.setdefault(package, set()).update(modules)
+
                 import_packages = sorted([key.split(".") for key in imports.keys()])
                 for package in import_packages:
                     package_name = ".".join(package)
@@ -65,7 +78,18 @@ class AlchemicalLab:
                         f.write(f"from {package_name} import {', '.join(modules)}\n")
                 f.write("\n")
                 f.write("from ._base import Base\n\n\n")
-                f.write(code)
+                f.write(code["table"])
+
+                for segment in plugin_code.get(table.name, []):
+                    if segment.location == "table":
+                        f.write("    " + segment.code + "\n")
+
+                f.write("\n")
+                f.write(code["end"])
+
+                for segment in plugin_code.get(table.name, []):
+                    if segment.location == "end":
+                        f.write(segment.code + "\n")
             
             generated_tables.append(table)
 
