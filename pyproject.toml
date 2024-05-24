@@ -1,0 +1,23 @@
+[project]
+name = "alchemical_clone"
+version = "0.0.1"
+authors = [
+  { name="Francisco Rodrigues", email="francisco.rodrigues@gmail.com" },
+]
+description = "A Python package for generating SQLAlchemy ORM code from an existing database"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Database"
+]
+dynamic = ["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.urls]
+Homepage = "https://github.com/ArmindoFlores/alchemical-clone"
+Issues = "https://github.com/ArmindoFlores/alchemical-clone/issues"
