@@ -28,6 +28,9 @@ def one_to_many(lab: "AlchemicalLab") -> "PluginResult":
                 if referred_table == table:
                     continue
 
+                if not table.will_generate():
+                    continue
+
                 plugin_imports = [
                     PluginImport("sqlalchemy.orm", {"relationship"}),
                     PluginImport(f".{table.name}", {table.class_name})

@@ -46,7 +46,7 @@ class AlchemicalColumn:
         """Generate SQLAlchemy ORM code for this column."""
 
         if try_set_primary_key:
-            if self._column.nullable is False:
+            if self.valid_primary_key:
                 self.implicit_primary_key = True
 
         optional_attributes = {
@@ -63,6 +63,10 @@ class AlchemicalColumn:
         code += ")"
 
         return code
+    
+    @property
+    def valid_primary_key(self) -> bool:
+        return self._column.nullable is False
     
     @property
     def target_name(self) -> str:

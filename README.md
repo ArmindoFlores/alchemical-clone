@@ -17,6 +17,7 @@ The most basic way of running Alchemical Clone would be to import it and use it 
 
 ```python
 import alchemical_clone
+import sqlalchemy
 
 # Create a connection to the database
 engine_url = alchemical_clone.utils.get_engine_url(

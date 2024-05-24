@@ -83,6 +83,14 @@ class AlchemicalTable:
             "sqlalchemy.orm": orm_imports 
         }
 
+    def will_generate(self) -> bool:
+        """Check if this table will generate any code."""
+        
+        for column in self.columns:
+            if column.implicit_primary_key or column.valid_primary_key:
+                return True
+        return False
+
     def codegen(self) -> typing.Dict[CodeLocation, str]:
         """Generate SQLAlchemy ORM code for this table."""
 
